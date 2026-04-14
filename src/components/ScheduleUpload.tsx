@@ -161,7 +161,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
     setProcessing(true);
     try {
       const { error: insertError } = await supabase.from("event_users").insert({
-        event_id: eventId, name: name.trim(), schedule: icsEvents,
+        event_id: eventId, name: name.trim(), schedule: icsEvents as unknown as import("@/integrations/supabase/types").Json,
       });
       if (insertError) throw insertError;
       toast.success(`¡Horario de ${name} agregado! (${icsEvents.length} eventos importados)`);
