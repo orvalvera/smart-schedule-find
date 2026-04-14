@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ScheduleUpload from "@/components/ScheduleUpload";
 import AvailabilityGrid from "@/components/AvailabilityGrid";
+import IndividualSchedules from "@/components/IndividualSchedules";
 
 export interface ScheduleEvent {
   title: string;
@@ -28,9 +29,19 @@ const EventPage = () => {
   const [users, setUsers] = useState<EventUser[]>([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [eventName, setEventName] = useState("");
 
   const fetchUsers = useCallback(async () => {
     if (!id) return;
+
+    // Fetch event name
+    const { data: evt } = await supabase
+      .from("events")
+      .select("name, group_id")
+      .eq("id", id)
+      .single();
+    if (evt?.name) setEventName(evt.name);
+
     const { data, error } = await supabase
       .from("event_users")
       .select("*")
@@ -67,7 +78,6 @@ const EventPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav */}
       <nav className="border-b border-border px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
@@ -78,6 +88,10 @@ const EventPage = () => {
       </nav>
 
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        {eventName && (
+          <h1 className="text-2xl font-bold text-foreground">{eventName}</h1>
+        )}
+
         {/* Share header */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h2 className="text-sm font-medium text-muted-foreground mb-2">
@@ -89,20 +103,16 @@ const EventPage = () => {
             </div>
             <Button onClick={copyLink} variant="outline" className="shrink-0">
               {copied ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" /> Copiado
-                </>
+                <><Check className="h-4 w-4 mr-2" /> Copiado</>
               ) : (
-                <>
-                  <Link2 className="h-4 w-4 mr-2" /> Copiar Link
-                </>
+                <><Link2 className="h-4 w-4 mr-2" /> Copiar Link</>
               )}
             </Button>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left column: Upload + Users */}
+          {/* Left column */}
           <div className="space-y-6">
             <ScheduleUpload eventId={id!} onScheduleAdded={handleScheduleAdded} />
 
@@ -123,20 +133,13 @@ const EventPage = () => {
               ) : (
                 <ul className="space-y-2">
                   {users.map((u) => (
-                    <li
-                      key={u.id}
-                      className="flex items-center gap-3 px-3 py-2 bg-muted rounded-lg"
-                    >
+                    <li key={u.id} className="flex items-center gap-3 px-3 py-2 bg-muted rounded-lg">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
                         {u.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {u.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {u.schedule.length} clases
-                        </p>
+                        <p className="text-sm font-medium text-foreground">{u.name}</p>
+                        <p className="text-xs text-muted-foreground">{u.schedule.length} clases</p>
                       </div>
                     </li>
                   ))}
@@ -145,9 +148,10 @@ const EventPage = () => {
             </div>
           </div>
 
-          {/* Right column: Grid */}
-          <div className="lg:col-span-2">
+          {/* Right column */}
+          <div className="lg:col-span-2 space-y-6">
             <AvailabilityGrid users={users} />
+            <IndividualSchedules users={users} />
           </div>
         </div>
       </div>
