@@ -1,4 +1,6 @@
 import { useMemo, useState, useRef } from "react";
+import { BarChart3, Grid3X3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { EventUser } from "@/pages/EventPage";
 
 interface Props {
@@ -30,11 +32,11 @@ interface TooltipData {
 
 const AvailabilityGrid = ({ users }: Props) => {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [heatmap, setHeatmap] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const grid = useMemo(() => {
     const totalUsers = users.length;
-    // busyUsers[slotIndex][dayIndex] = set of user names busy
     const busyUsers: Set<string>[][] = timeSlots.map(() =>
       Array.from({ length: 7 }, () => new Set<string>())
     );
@@ -69,6 +71,16 @@ const AvailabilityGrid = ({ users }: Props) => {
     return "bg-busy";
   };
 
+  const getHeatmapStyle = (busyCount: number): React.CSSProperties => {
+    if (grid.total === 0) return { backgroundColor: "hsl(152, 60%, 90%)" };
+    const ratio = (grid.total - busyCount) / grid.total; // 1 = all free, 0 = all busy
+    // Interpolate from red (busy) through yellow to green (free)
+    const hue = ratio * 130; // 0 = red, 130 = green
+    const sat = 65 + ratio * 10;
+    const light = 40 + (1 - Math.abs(ratio - 0.5) * 2) * 15; // brighter in the middle
+    return { backgroundColor: `hsl(${hue}, ${sat}%, ${light}%)` };
+  };
+
   const handleMouseEnter = (e: React.MouseEvent, slotIdx: number, dayIdx: number) => {
     if (grid.total === 0) return;
     const rect = containerRef.current?.getBoundingClientRect();
@@ -98,19 +110,45 @@ const AvailabilityGrid = ({ users }: Props) => {
     <div className="bg-card rounded-xl border border-border p-6 relative" ref={containerRef}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-foreground">Disponibilidad grupal</h3>
-        {grid.total > 0 && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {grid.total > 0 && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs gap-1"
+                onClick={() => setHeatmap(!heatmap)}
+              >
+                {heatmap ? <Grid3X3 className="h-3.5 w-3.5" /> : <BarChart3 className="h-3.5 w-3.5" />}
+                {heatmap ? "Discreto" : "Mapa de calor"}
+              </Button>
+              {!heatmap && (
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
+                  </span>
+                </div>
+              )}
+              {heatmap && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0, 65%, 45%)" }} />
+                  <span>Ocupado</span>
+                  <div className="w-16 h-3 rounded-sm" style={{
+                    background: "linear-gradient(to right, hsl(0,65%,45%), hsl(60,70%,50%), hsl(130,75%,45%))"
+                  }} />
+                  <span>Libre</span>
+                  <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(130, 75%, 45%)" }} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto -mx-6 px-6">
@@ -129,17 +167,21 @@ const AvailabilityGrid = ({ users }: Props) => {
                 <td className="text-[10px] text-muted-foreground pr-2 py-0 align-top whitespace-nowrap">
                   {slot.minute === 0 ? formatTime(slot.hour, slot.minute) : ""}
                 </td>
-                {DAYS.map((_, di) => (
-                  <td key={di} className="p-[1px]">
-                    <div
-                      className={`h-4 rounded-[3px] transition-colors cursor-pointer hover:ring-2 hover:ring-primary/40 ${getCellStyle(
-                        grid.busyUsers[si][di].size
-                      )}`}
-                      onMouseEnter={(e) => handleMouseEnter(e, si, di)}
-                      onMouseLeave={handleMouseLeave}
-                    />
-                  </td>
-                ))}
+                {DAYS.map((_, di) => {
+                  const busyCount = grid.busyUsers[si][di].size;
+                  return (
+                    <td key={di} className="p-[1px]">
+                      <div
+                        className={`h-4 rounded-[3px] transition-colors cursor-pointer hover:ring-2 hover:ring-primary/40 ${
+                          heatmap ? "" : getCellStyle(busyCount)
+                        }`}
+                        style={heatmap ? getHeatmapStyle(busyCount) : undefined}
+                        onMouseEnter={(e) => handleMouseEnter(e, si, di)}
+                        onMouseLeave={handleMouseLeave}
+                      />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
