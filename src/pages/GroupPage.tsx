@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Plus, Users, Link2, Check } from "lucide-react";
+import { Calendar, Plus, Users, Link2, Check, ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +40,6 @@ const GroupPage = () => {
       .order("created_at", { ascending: false });
 
     if (evts) {
-      // Get participant counts
       const eventsWithCounts: GroupEvent[] = [];
       for (const evt of evts) {
         const { count } = await supabase
@@ -101,9 +100,17 @@ const GroupPage = () => {
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
-        <div>
+        {/* Back + Title */}
+        <div className="space-y-2">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Inicio
+          </button>
           <h1 className="text-3xl font-bold text-foreground">{groupName || "Grupo"}</h1>
-          <p className="text-muted-foreground mt-1">Administra los eventos de tu grupo</p>
+          <p className="text-muted-foreground">Panel de administración del grupo</p>
         </div>
 
         {/* Share */}
@@ -153,18 +160,21 @@ const GroupPage = () => {
                 <button
                   key={evt.id}
                   onClick={() => navigate(`/event/${evt.id}`)}
-                  className="bg-card rounded-xl border border-border p-5 text-left hover:border-primary/50 transition-colors w-full"
+                  className="bg-card rounded-xl border border-border p-5 text-left hover:border-primary/50 transition-colors w-full group"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-foreground">{evt.name || "Sin nombre"}</p>
+                      <p className="font-medium text-foreground group-hover:text-primary transition-colors">{evt.name || "Sin nombre"}</p>
                       <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                         <Users className="h-3 w-3" /> {evt._count} participantes
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(evt.created_at).toLocaleDateString()}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(evt.created_at).toLocaleDateString()}
+                      </span>
+                      <ArrowLeft className="h-4 w-4 text-muted-foreground rotate-180 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                 </button>
               ))}

@@ -1,6 +1,6 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Link2, Check, Users } from "lucide-react";
+import { Calendar, Link2, Check, Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,21 +26,28 @@ export interface EventUser {
 
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<EventUser[]>([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [eventName, setEventName] = useState("");
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("");
 
   const fetchUsers = useCallback(async () => {
     if (!id) return;
 
-    // Fetch event name
     const { data: evt } = await supabase
       .from("events")
       .select("name, group_id")
       .eq("id", id)
       .single();
     if (evt?.name) setEventName(evt.name);
+    if (evt?.group_id) {
+      setGroupId(evt.group_id);
+      const { data: grp } = await supabase.from("groups").select("name").eq("id", evt.group_id).single();
+      if (grp) setGroupName(grp.name);
+    }
 
     const { data, error } = await supabase
       .from("event_users")
@@ -72,10 +79,6 @@ const EventPage = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleScheduleAdded = () => {
-    fetchUsers();
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border px-6 py-4">
@@ -87,12 +90,24 @@ const EventPage = () => {
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {eventName && (
-          <h1 className="text-2xl font-bold text-foreground">{eventName}</h1>
-        )}
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        {/* Back to group + title */}
+        <div className="space-y-2">
+          {groupId && (
+            <button
+              onClick={() => navigate(`/group/${groupId}`)}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver a {groupName || "grupo"}
+            </button>
+          )}
+          {eventName && (
+            <h1 className="text-2xl font-bold text-foreground">{eventName}</h1>
+          )}
+        </div>
 
-        {/* Share header */}
+        {/* Share */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h2 className="text-sm font-medium text-muted-foreground mb-2">
             Comparte este link con tus amigos
@@ -112,11 +127,9 @@ const EventPage = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left column */}
           <div className="space-y-6">
-            <ScheduleUpload eventId={id!} onScheduleAdded={handleScheduleAdded} />
+            <ScheduleUpload eventId={id!} onScheduleAdded={fetchUsers} />
 
-            {/* Users list */}
             <div className="bg-card rounded-xl border border-border p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="h-5 w-5 text-primary" />
@@ -148,7 +161,6 @@ const EventPage = () => {
             </div>
           </div>
 
-          {/* Right column */}
           <div className="lg:col-span-2 space-y-6">
             <AvailabilityGrid users={users} />
             <IndividualSchedules users={users} />

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Calendar, Sparkles, Users, Clock, ArrowRight, FolderPlus } from "lucide-react";
+import { Calendar, Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -17,7 +17,9 @@ const Index = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [groupDialog, setGroupDialog] = useState(false);
+  const [joinDialog, setJoinDialog] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const [joinLink, setJoinLink] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
 
   const createEvent = async () => {
@@ -28,7 +30,6 @@ const Index = () => {
         .insert({})
         .select("id")
         .single();
-
       if (error) throw error;
       navigate(`/event/${data.id}`);
     } catch {
@@ -56,6 +57,26 @@ const Index = () => {
       toast.error("Error al crear el grupo");
     } finally {
       setCreatingGroup(false);
+    }
+  };
+
+  const joinGroup = () => {
+    const link = joinLink.trim();
+    // Extract group or event ID from link
+    const groupMatch = link.match(/\/group\/([a-f0-9-]+)/i);
+    const eventMatch = link.match(/\/event\/([a-f0-9-]+)/i);
+    // Also accept raw UUID
+    const uuidMatch = link.match(/^[a-f0-9-]{36}$/i);
+
+    if (groupMatch) {
+      navigate(`/group/${groupMatch[1]}`);
+    } else if (eventMatch) {
+      navigate(`/event/${eventMatch[1]}`);
+    } else if (uuidMatch) {
+      // Try as group first
+      navigate(`/group/${link}`);
+    } else {
+      toast.error("Link no válido. Pega el link completo del grupo o evento.");
     }
   };
 
@@ -105,7 +126,15 @@ const Index = () => {
             </Button>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-6 pt-12">
+          {/* Join existing group/event */}
+          <div className="pt-2">
+            <Button variant="ghost" onClick={() => setJoinDialog(true)} className="text-muted-foreground hover:text-foreground">
+              <LogIn className="mr-2 h-4 w-4" />
+              Unirme a un grupo o evento existente
+            </Button>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-6 pt-8">
             {[
               { icon: Sparkles, title: "IA Vision", desc: "Sube una foto y la IA extrae tu horario automáticamente" },
               { icon: Users, title: "Colaborativo", desc: "Comparte un link y todos suben su horario en segundos" },
@@ -123,6 +152,7 @@ const Index = () => {
         </div>
       </main>
 
+      {/* Create group dialog */}
       <Dialog open={groupDialog} onOpenChange={setGroupDialog}>
         <DialogContent>
           <DialogHeader>
@@ -140,6 +170,30 @@ const Index = () => {
             />
             <Button onClick={createGroup} disabled={creatingGroup} className="w-full">
               {creatingGroup ? "Creando..." : "Crear grupo"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Join group/event dialog */}
+      <Dialog open={joinDialog} onOpenChange={setJoinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unirme a un grupo o evento</DialogTitle>
+            <DialogDescription>
+              Pega el link que te compartieron para acceder directamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Input
+              placeholder="Pega el link aquí (ej: https://...grupo/abc123)"
+              value={joinLink}
+              onChange={(e) => setJoinLink(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && joinGroup()}
+            />
+            <Button onClick={joinGroup} className="w-full">
+              <LogIn className="mr-2 h-4 w-4" />
+              Ir al grupo o evento
             </Button>
           </div>
         </DialogContent>
