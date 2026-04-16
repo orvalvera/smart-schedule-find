@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ScheduleEvent } from "@/pages/EventPage";
 
 interface Props {
