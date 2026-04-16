@@ -168,7 +168,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
         return;
       }
       const { error: insertError } = await supabase.from("event_users").insert({
-        event_id: eventId, name: name.trim(), schedule,
+        event_id: eventId, name: name.trim(), schedule, user_id: user?.id,
       });
       if (insertError) throw insertError;
       toast.success(`¡Horario de ${name} agregado! (${schedule.length} clases detectadas)`);
@@ -190,7 +190,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
       // Strip date field before saving
       const cleanEvents: ScheduleEvent[] = filteredIcsEvents.map(({ date: _, ...rest }) => rest);
       const { error: insertError } = await supabase.from("event_users").insert({
-        event_id: eventId, name: name.trim(), schedule: cleanEvents as unknown as import("@/integrations/supabase/types").Json,
+        event_id: eventId, name: name.trim(), schedule: cleanEvents as unknown as import("@/integrations/supabase/types").Json, user_id: user?.id,
       });
       if (insertError) throw insertError;
       toast.success(`¡Horario de ${name} agregado! (${cleanEvents.length} eventos importados)`);
