@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { Calendar, Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn } from "lucide-react";
+import { Calendar, Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
   const [groupDialog, setGroupDialog] = useState(false);
   const [joinDialog, setJoinDialog] = useState(false);
@@ -27,7 +29,7 @@ const Index = () => {
     try {
       const { data, error } = await supabase
         .from("events")
-        .insert({})
+        .insert({ user_id: user?.id })
         .select("id")
         .single();
       if (error) throw error;
@@ -48,10 +50,16 @@ const Index = () => {
     try {
       const { data, error } = await supabase
         .from("groups")
-        .insert({ name: groupName.trim() })
+        .insert({ name: groupName.trim(), user_id: user?.id })
         .select("id")
         .single();
       if (error) throw error;
+      // Auto-join creator as admin
+      await supabase.from("user_groups").insert({
+        user_id: user?.id,
+        group_id: data.id,
+        role: "admin",
+      });
       navigate(`/group/${data.id}`);
     } catch {
       toast.error("Error al crear el grupo");
@@ -62,10 +70,8 @@ const Index = () => {
 
   const joinGroup = () => {
     const link = joinLink.trim();
-    // Extract group or event ID from link
     const groupMatch = link.match(/\/group\/([a-f0-9-]+)/i);
     const eventMatch = link.match(/\/event\/([a-f0-9-]+)/i);
-    // Also accept raw UUID
     const uuidMatch = link.match(/^[a-f0-9-]{36}$/i);
 
     if (groupMatch) {
@@ -73,19 +79,33 @@ const Index = () => {
     } else if (eventMatch) {
       navigate(`/event/${eventMatch[1]}`);
     } else if (uuidMatch) {
-      // Try as group first
       navigate(`/group/${link}`);
     } else {
       toast.error("Link no válido. Pega el link completo del grupo o evento.");
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Sesión cerrada");
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-2">
-          <Calendar className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold text-foreground">SyncAI</span>
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-6 w-6 text-primary" />
+            <span className="text-xl font-bold text-foreground">SyncAI</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:inline">
+              {user?.user_metadata?.full_name || user?.email}
+            </span>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </nav>
 
@@ -126,7 +146,6 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Join existing group/event */}
           <div className="pt-2">
             <Button variant="ghost" onClick={() => setJoinDialog(true)} className="text-muted-foreground hover:text-foreground">
               <LogIn className="mr-2 h-4 w-4" />
@@ -152,7 +171,6 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Create group dialog */}
       <Dialog open={groupDialog} onOpenChange={setGroupDialog}>
         <DialogContent>
           <DialogHeader>
@@ -175,7 +193,6 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Join group/event dialog */}
       <Dialog open={joinDialog} onOpenChange={setJoinDialog}>
         <DialogContent>
           <DialogHeader>

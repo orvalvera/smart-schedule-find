@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Link2, Check, Users, ArrowLeft } from "lucide-react";
+import { Calendar, Link2, Check, Users, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import ScheduleUpload from "@/components/ScheduleUpload";
 import AvailabilityGrid from "@/components/AvailabilityGrid";
 import IndividualSchedules from "@/components/IndividualSchedules";
@@ -27,6 +28,7 @@ export interface EventUser {
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [users, setUsers] = useState<EventUser[]>([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,20 @@ const EventPage = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+
+    // Realtime subscription
+    if (!id) return;
+    const channel = supabase
+      .channel(`event-users-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "event_users", filter: `event_id=eq.${id}` },
+        () => fetchUsers()
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchUsers, id]);
 
   const shareUrl = `${window.location.origin}/event/${id}`;
 
@@ -87,11 +102,18 @@ const EventPage = () => {
             <Calendar className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-foreground">SyncAI</span>
           </a>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:inline">
+              {user?.user_metadata?.full_name || user?.email}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => { signOut(); toast.success("Sesión cerrada"); }}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </nav>
 
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        {/* Back to group + title */}
         <div className="space-y-2">
           {groupId && (
             <button
@@ -107,7 +129,6 @@ const EventPage = () => {
           )}
         </div>
 
-        {/* Share */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h2 className="text-sm font-medium text-muted-foreground mb-2">
             Comparte este link con tus amigos

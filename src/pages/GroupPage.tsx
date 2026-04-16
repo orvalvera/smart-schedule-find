@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Plus, Users, Link2, Check, ArrowLeft, Trash2 } from "lucide-react";
+import { Calendar, Plus, Users, Link2, Check, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface GroupEvent {
   id: string;
@@ -16,12 +17,22 @@ interface GroupEvent {
 const GroupPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [groupName, setGroupName] = useState("");
   const [events, setEvents] = useState<GroupEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [newEventName, setNewEventName] = useState("");
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Auto-join group on visit
+  useEffect(() => {
+    if (!id || !user) return;
+    supabase
+      .from("user_groups")
+      .upsert({ user_id: user.id, group_id: id }, { onConflict: "user_id,group_id" })
+      .then();
+  }, [id, user]);
 
   const fetchGroup = useCallback(async () => {
     if (!id) return;
@@ -66,7 +77,7 @@ const GroupPage = () => {
     try {
       const { data, error } = await supabase
         .from("events")
-        .insert({ name: newEventName.trim(), group_id: id })
+        .insert({ name: newEventName.trim(), group_id: id, user_id: user?.id })
         .select("id")
         .single();
       if (error) throw error;
@@ -96,11 +107,18 @@ const GroupPage = () => {
             <Calendar className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-foreground">SyncAI</span>
           </a>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:inline">
+              {user?.user_metadata?.full_name || user?.email}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => { signOut(); toast.success("Sesión cerrada"); }}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
-        {/* Back + Title */}
         <div className="space-y-2">
           <button
             onClick={() => navigate("/")}
@@ -113,7 +131,6 @@ const GroupPage = () => {
           <p className="text-muted-foreground">Panel de administración del grupo</p>
         </div>
 
-        {/* Share */}
         <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
           <div className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground font-mono truncate">
             {shareUrl}
@@ -123,7 +140,6 @@ const GroupPage = () => {
           </Button>
         </div>
 
-        {/* Create event */}
         <div className="bg-card rounded-xl border border-border p-6 space-y-4">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
@@ -142,7 +158,6 @@ const GroupPage = () => {
           </div>
         </div>
 
-        {/* Events list */}
         <div className="space-y-3">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
