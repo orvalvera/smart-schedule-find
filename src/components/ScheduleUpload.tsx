@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ScheduleEvent } from "@/pages/EventPage";
 
 interface Props {
@@ -73,6 +74,7 @@ function parseICSRaw(text: string): RawICSEvent[] {
 const DAYS_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -166,7 +168,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
         return;
       }
       const { error: insertError } = await supabase.from("event_users").insert({
-        event_id: eventId, name: name.trim(), schedule,
+        event_id: eventId, name: name.trim(), schedule, user_id: user?.id,
       });
       if (insertError) throw insertError;
       toast.success(`¡Horario de ${name} agregado! (${schedule.length} clases detectadas)`);
@@ -188,7 +190,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
       // Strip date field before saving
       const cleanEvents: ScheduleEvent[] = filteredIcsEvents.map(({ date: _, ...rest }) => rest);
       const { error: insertError } = await supabase.from("event_users").insert({
-        event_id: eventId, name: name.trim(), schedule: cleanEvents as unknown as import("@/integrations/supabase/types").Json,
+        event_id: eventId, name: name.trim(), schedule: cleanEvents as unknown as import("@/integrations/supabase/types").Json, user_id: user?.id,
       });
       if (insertError) throw insertError;
       toast.success(`¡Horario de ${name} agregado! (${cleanEvents.length} eventos importados)`);
