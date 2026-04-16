@@ -74,6 +74,7 @@ function parseICSRaw(text: string): RawICSEvent[] {
 const DAYS_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
