@@ -10,6 +10,7 @@ import GroupPage from "./pages/GroupPage.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import GoogleCalendarCallback from "./pages/GoogleCalendarCallback.tsx";
+import AppLayout from "./components/AppLayout";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -24,7 +25,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
   if (!user) return <Navigate to="/auth" replace />;
-  return <>{children}</>;
+  return <AppLayout>{children}</AppLayout>;
 };
 
 const App = () => (
