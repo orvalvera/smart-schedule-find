@@ -471,6 +471,78 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
             {processing ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</>) : `Enviar horario (${filteredIcsEvents.length} eventos)`}
           </Button>
         </TabsContent>
+
+        <TabsContent value="google" className="space-y-4 mt-4">
+          {gcalChecking ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : !gcalConnected ? (
+            <div className="border-2 border-dashed border-border rounded-xl p-8 text-center space-y-4">
+              <LinkIcon className="h-10 w-10 text-muted-foreground mx-auto" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Conecta tu Google Calendar</p>
+                <p className="text-xs text-muted-foreground">
+                  Importa tus eventos automáticamente. Solo permiso de lectura.
+                </p>
+              </div>
+              <Button onClick={connectGoogleCalendar} className="w-full">
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Conectar Google Calendar
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="bg-muted/50 rounded-xl border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    Google Calendar conectado
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={disconnectGoogleCalendar} className="text-xs">
+                    <Unlink className="h-3 w-3 mr-1" /> Desconectar
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">Rango de fechas a importar</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("text-xs", !gcalDateFrom && "text-muted-foreground")}>
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          {gcalDateFrom ? format(gcalDateFrom, "dd MMM yyyy", { locale: es }) : "Desde"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={gcalDateFrom} onSelect={setGcalDateFrom} className={cn("p-3 pointer-events-auto")} />
+                      </PopoverContent>
+                    </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("text-xs", !gcalDateTo && "text-muted-foreground")}>
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          {gcalDateTo ? format(gcalDateTo, "dd MMM yyyy", { locale: es }) : "Hasta"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={gcalDateTo} onSelect={setGcalDateTo} className={cn("p-3 pointer-events-auto")} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+
+              <Button className="w-full" onClick={importFromGoogleCalendar} disabled={processing || !name.trim()}>
+                {processing ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importando eventos...</>
+                ) : (
+                  <>Importar eventos de Google Calendar</>
+                )}
+              </Button>
+            </>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
