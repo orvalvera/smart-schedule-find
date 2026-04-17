@@ -27,7 +27,6 @@ export interface EventUser {
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
   const [users, setUsers] = useState<EventUser[]>([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
