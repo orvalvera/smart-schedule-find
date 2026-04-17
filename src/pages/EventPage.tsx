@@ -1,10 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Link2, Check, Users, ArrowLeft, LogOut } from "lucide-react";
+import { Link2, Check, Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import ScheduleUpload from "@/components/ScheduleUpload";
 import AvailabilityGrid from "@/components/AvailabilityGrid";
 import IndividualSchedules from "@/components/IndividualSchedules";
