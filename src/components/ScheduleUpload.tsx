@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import { Upload, Loader2, ImageIcon, CalendarDays, Filter } from "lucide-react";
+import { Upload, Loader2, ImageIcon, CalendarDays, Filter, Link as LinkIcon, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -90,6 +90,88 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
+
+  // Google Calendar
+  const [gcalConnected, setGcalConnected] = useState<boolean>(false);
+  const [gcalChecking, setGcalChecking] = useState(true);
+  const [gcalDateFrom, setGcalDateFrom] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d;
+  });
+  const [gcalDateTo, setGcalDateTo] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30); return d;
+  });
+
+  // Check Google Calendar connection on mount
+  useMemo(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("google_calendar_tokens")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setGcalConnected(!!data);
+      setGcalChecking(false);
+    })();
+  }, [user]);
+
+  const connectGoogleCalendar = async () => {
+    try {
+      sessionStorage.setItem("gcal_return_to", window.location.pathname);
+      const redirectUri = `${window.location.origin}/google-calendar/callback`;
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { redirectUri },
+      });
+      if (error || !data?.authUrl) throw new Error(error?.message || "No auth URL");
+      window.location.href = data.authUrl;
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo iniciar la conexión con Google");
+    }
+  };
+
+  const disconnectGoogleCalendar = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("google_calendar_tokens")
+      .delete()
+      .eq("user_id", user.id);
+    if (error) { toast.error("Error al desconectar"); return; }
+    setGcalConnected(false);
+    toast.success("Google Calendar desconectado");
+  };
+
+  const importFromGoogleCalendar = async () => {
+    if (!name.trim()) { toast.error("Escribe tu nombre"); return; }
+    if (!gcalDateFrom || !gcalDateTo) { toast.error("Selecciona un rango de fechas"); return; }
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-calendar-events", {
+        body: { startDate: gcalDateFrom.toISOString(), endDate: gcalDateTo.toISOString() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const schedule = data?.schedule || [];
+      if (schedule.length === 0) {
+        toast.warning("No se encontraron eventos en ese rango");
+        setProcessing(false);
+        return;
+      }
+      const { error: insertError } = await supabase.from("event_users").insert({
+        event_id: eventId, name: name.trim(), schedule, user_id: user?.id,
+      });
+      if (insertError) throw insertError;
+      toast.success(`¡Horario agregado! (${schedule.length} eventos importados)`);
+      setName("");
+      onScheduleAdded();
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : "Error al importar";
+      toast.error(msg);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const toggleDay = (d: number) => {
     setSelectedDays((prev) =>
@@ -227,7 +309,10 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
             <ImageIcon className="h-4 w-4" /> Foto
           </TabsTrigger>
           <TabsTrigger value="ics" className="flex-1 gap-1">
-            <CalendarDays className="h-4 w-4" /> Calendario (.ics)
+            <CalendarDays className="h-4 w-4" /> .ics
+          </TabsTrigger>
+          <TabsTrigger value="google" className="flex-1 gap-1">
+            <LinkIcon className="h-4 w-4" /> Google
           </TabsTrigger>
         </TabsList>
 
@@ -385,6 +470,78 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
           <Button className="w-full" onClick={submitIcs} disabled={processing || filteredIcsEvents.length === 0 || !name.trim()}>
             {processing ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</>) : `Enviar horario (${filteredIcsEvents.length} eventos)`}
           </Button>
+        </TabsContent>
+
+        <TabsContent value="google" className="space-y-4 mt-4">
+          {gcalChecking ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : !gcalConnected ? (
+            <div className="border-2 border-dashed border-border rounded-xl p-8 text-center space-y-4">
+              <LinkIcon className="h-10 w-10 text-muted-foreground mx-auto" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Conecta tu Google Calendar</p>
+                <p className="text-xs text-muted-foreground">
+                  Importa tus eventos automáticamente. Solo permiso de lectura.
+                </p>
+              </div>
+              <Button onClick={connectGoogleCalendar} className="w-full">
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Conectar Google Calendar
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="bg-muted/50 rounded-xl border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    Google Calendar conectado
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={disconnectGoogleCalendar} className="text-xs">
+                    <Unlink className="h-3 w-3 mr-1" /> Desconectar
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">Rango de fechas a importar</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("text-xs", !gcalDateFrom && "text-muted-foreground")}>
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          {gcalDateFrom ? format(gcalDateFrom, "dd MMM yyyy", { locale: es }) : "Desde"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={gcalDateFrom} onSelect={setGcalDateFrom} className={cn("p-3 pointer-events-auto")} />
+                      </PopoverContent>
+                    </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("text-xs", !gcalDateTo && "text-muted-foreground")}>
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          {gcalDateTo ? format(gcalDateTo, "dd MMM yyyy", { locale: es }) : "Hasta"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={gcalDateTo} onSelect={setGcalDateTo} className={cn("p-3 pointer-events-auto")} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+
+              <Button className="w-full" onClick={importFromGoogleCalendar} disabled={processing || !name.trim()}>
+                {processing ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importando eventos...</>
+                ) : (
+                  <>Importar eventos de Google Calendar</>
+                )}
+              </Button>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>

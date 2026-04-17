@@ -9,6 +9,7 @@ import EventPage from "./pages/EventPage.tsx";
 import GroupPage from "./pages/GroupPage.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import GoogleCalendarCallback from "./pages/GoogleCalendarCallback.tsx";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/event/:id" element={<ProtectedRoute><EventPage /></ProtectedRoute>} />
             <Route path="/group/:id" element={<ProtectedRoute><GroupPage /></ProtectedRoute>} />
+            <Route path="/google-calendar/callback" element={<ProtectedRoute><GoogleCalendarCallback /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
