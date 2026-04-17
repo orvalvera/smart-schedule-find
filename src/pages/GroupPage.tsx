@@ -100,24 +100,7 @@ const GroupPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold text-foreground">SyncAI</span>
-          </a>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {user?.user_metadata?.full_name || user?.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => { signOut(); toast.success("Sesión cerrada"); }}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-full bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
         <div className="space-y-2">
           <button
