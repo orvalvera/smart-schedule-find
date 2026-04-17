@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
       const start = new Date(ev.start.dateTime);
       const end = new Date(ev.end.dateTime);
       const jsDay = start.getDay(); // 0=Sun..6=Sat
-      const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1; // shift to Mon=0..Sun=6
+      const dayOfWeek = jsDay === 0 ? 7 : jsDay; // app convention: Mon=1..Sun=7
       schedule.push({
         title: ev.summary ?? "Busy",
         dayOfWeek,
