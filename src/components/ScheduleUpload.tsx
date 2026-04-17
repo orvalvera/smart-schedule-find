@@ -91,6 +91,88 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
 
+  // Google Calendar
+  const [gcalConnected, setGcalConnected] = useState<boolean>(false);
+  const [gcalChecking, setGcalChecking] = useState(true);
+  const [gcalDateFrom, setGcalDateFrom] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d;
+  });
+  const [gcalDateTo, setGcalDateTo] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30); return d;
+  });
+
+  // Check Google Calendar connection on mount
+  useMemo(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("google_calendar_tokens")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setGcalConnected(!!data);
+      setGcalChecking(false);
+    })();
+  }, [user]);
+
+  const connectGoogleCalendar = async () => {
+    try {
+      sessionStorage.setItem("gcal_return_to", window.location.pathname);
+      const redirectUri = `${window.location.origin}/google-calendar/callback`;
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { redirectUri },
+      });
+      if (error || !data?.authUrl) throw new Error(error?.message || "No auth URL");
+      window.location.href = data.authUrl;
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo iniciar la conexión con Google");
+    }
+  };
+
+  const disconnectGoogleCalendar = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("google_calendar_tokens")
+      .delete()
+      .eq("user_id", user.id);
+    if (error) { toast.error("Error al desconectar"); return; }
+    setGcalConnected(false);
+    toast.success("Google Calendar desconectado");
+  };
+
+  const importFromGoogleCalendar = async () => {
+    if (!name.trim()) { toast.error("Escribe tu nombre"); return; }
+    if (!gcalDateFrom || !gcalDateTo) { toast.error("Selecciona un rango de fechas"); return; }
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-calendar-events", {
+        body: { startDate: gcalDateFrom.toISOString(), endDate: gcalDateTo.toISOString() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const schedule = data?.schedule || [];
+      if (schedule.length === 0) {
+        toast.warning("No se encontraron eventos en ese rango");
+        setProcessing(false);
+        return;
+      }
+      const { error: insertError } = await supabase.from("event_users").insert({
+        event_id: eventId, name: name.trim(), schedule, user_id: user?.id,
+      });
+      if (insertError) throw insertError;
+      toast.success(`¡Horario agregado! (${schedule.length} eventos importados)`);
+      setName("");
+      onScheduleAdded();
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : "Error al importar";
+      toast.error(msg);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const toggleDay = (d: number) => {
     setSelectedDays((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
@@ -227,7 +309,10 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
             <ImageIcon className="h-4 w-4" /> Foto
           </TabsTrigger>
           <TabsTrigger value="ics" className="flex-1 gap-1">
-            <CalendarDays className="h-4 w-4" /> Calendario (.ics)
+            <CalendarDays className="h-4 w-4" /> .ics
+          </TabsTrigger>
+          <TabsTrigger value="google" className="flex-1 gap-1">
+            <LinkIcon className="h-4 w-4" /> Google
           </TabsTrigger>
         </TabsList>
 
