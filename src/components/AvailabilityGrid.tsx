@@ -1,10 +1,15 @@
 import { useMemo, useState, useRef } from "react";
-import { BarChart3, Grid3X3 } from "lucide-react";
+import { BarChart3, Grid3X3, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { EventUser } from "@/pages/EventPage";
+import { getISOWeek, getWeeksInYear, formatWeekLabel } from "@/lib/week";
 
 interface Props {
   users: EventUser[];
+  weekYear?: number;
+  weekNumber?: number;
+  onWeekChange?: (year: number, week: number) => void;
 }
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -30,10 +35,29 @@ interface TooltipData {
   dayIdx: number;
 }
 
-const AvailabilityGrid = ({ users }: Props) => {
+const AvailabilityGrid = ({ users, weekYear, weekNumber, onWeekChange }: Props) => {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [heatmap, setHeatmap] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const today = useMemo(() => getISOWeek(new Date()), []);
+  const year = weekYear ?? today.year;
+  const week = weekNumber ?? today.week;
+  const totalWeeks = useMemo(() => getWeeksInYear(year), [year]);
+
+  const goPrev = () => {
+    if (!onWeekChange) return;
+    if (week <= 1) {
+      const prevYear = year - 1;
+      onWeekChange(prevYear, getWeeksInYear(prevYear));
+    } else onWeekChange(year, week - 1);
+  };
+  const goNext = () => {
+    if (!onWeekChange) return;
+    if (week >= totalWeeks) onWeekChange(year + 1, 1);
+    else onWeekChange(year, week + 1);
+  };
+  const goToday = () => onWeekChange?.(today.year, today.week);
 
   const grid = useMemo(() => {
     const totalUsers = users.length;
@@ -73,11 +97,10 @@ const AvailabilityGrid = ({ users }: Props) => {
 
   const getHeatmapStyle = (busyCount: number): React.CSSProperties => {
     if (grid.total === 0) return { backgroundColor: "hsl(152, 60%, 90%)" };
-    const ratio = (grid.total - busyCount) / grid.total; // 1 = all free, 0 = all busy
-    // Interpolate from red (busy) through yellow to green (free)
-    const hue = ratio * 130; // 0 = red, 130 = green
+    const ratio = (grid.total - busyCount) / grid.total;
+    const hue = ratio * 130;
     const sat = 65 + ratio * 10;
-    const light = 40 + (1 - Math.abs(ratio - 0.5) * 2) * 15; // brighter in the middle
+    const light = 40 + (1 - Math.abs(ratio - 0.5) * 2) * 15;
     return { backgroundColor: `hsl(${hue}, ${sat}%, ${light}%)` };
   };
 
@@ -108,47 +131,75 @@ const AvailabilityGrid = ({ users }: Props) => {
 
   return (
     <div className="bg-card rounded-xl border border-border p-6 relative" ref={containerRef}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-foreground">Disponibilidad grupal</h3>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-semibold text-foreground">Disponibilidad grupal</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{formatWeekLabel(year, week)}</p>
+          </div>
           {grid.total > 0 && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs gap-1"
-                onClick={() => setHeatmap(!heatmap)}
-              >
-                {heatmap ? <Grid3X3 className="h-3.5 w-3.5" /> : <BarChart3 className="h-3.5 w-3.5" />}
-                {heatmap ? "Discreto" : "Mapa de calor"}
-              </Button>
-              {!heatmap && (
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
-                  </span>
-                </div>
-              )}
-              {heatmap && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0, 65%, 45%)" }} />
-                  <span>Ocupado</span>
-                  <div className="w-16 h-3 rounded-sm" style={{
-                    background: "linear-gradient(to right, hsl(0,65%,45%), hsl(60,70%,50%), hsl(130,75%,45%))"
-                  }} />
-                  <span>Libre</span>
-                  <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(130, 75%, 45%)" }} />
-                </div>
-              )}
-            </>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1"
+              onClick={() => setHeatmap(!heatmap)}
+            >
+              {heatmap ? <Grid3X3 className="h-3.5 w-3.5" /> : <BarChart3 className="h-3.5 w-3.5" />}
+              {heatmap ? "Discreto" : "Mapa de calor"}
+            </Button>
           )}
         </div>
+
+        {/* Week selector */}
+        {onWeekChange && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={goPrev} aria-label="Semana anterior">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Select value={String(week)} onValueChange={(v) => onWeekChange(year, parseInt(v))}>
+              <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72 bg-popover">
+                {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((w) => (
+                  <SelectItem key={w} value={String(w)} className="text-xs">
+                    Semana {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(year)} onValueChange={(v) => onWeekChange(parseInt(v), Math.min(week, getWeeksInYear(parseInt(v))))}>
+              <SelectTrigger className="h-8 w-[90px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                {[today.year - 1, today.year, today.year + 1].map((y) => (
+                  <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={goNext} aria-label="Semana siguiente">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={goToday}>
+              Hoy
+            </Button>
+          </div>
+        )}
+
+        {grid.total > 0 && !heatmap && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto -mx-6 px-6">
@@ -188,7 +239,6 @@ const AvailabilityGrid = ({ users }: Props) => {
         </table>
       </div>
 
-      {/* Tooltip */}
       {tooltip && tooltipContent && (
         <div
           className="absolute z-50 bg-popover border border-border rounded-lg shadow-lg p-3 pointer-events-none"
