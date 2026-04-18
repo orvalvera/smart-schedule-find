@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      event_invitations: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          invited_by: string
+          invited_email: string
+          invited_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          invited_by: string
+          invited_email: string
+          invited_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          invited_by?: string
+          invited_email?: string
+          invited_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invitations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_users: {
         Row: {
           created_at: string
@@ -87,6 +128,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          last_synced_at: string | null
           refresh_token: string | null
           scope: string | null
           updated_at: string
@@ -97,6 +139,7 @@ export type Database = {
           created_at?: string
           expires_at: string
           id?: string
+          last_synced_at?: string | null
           refresh_token?: string | null
           scope?: string | null
           updated_at?: string
@@ -107,6 +150,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          last_synced_at?: string | null
           refresh_token?: string | null
           scope?: string | null
           updated_at?: string
