@@ -142,6 +142,51 @@ const EventPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, id, loading]);
 
+  // Re-sync from Google Calendar when the selected week changes
+  useEffect(() => {
+    if (!user || !id || loading) return;
+    let cancelled = false;
+    (async () => {
+      const { data: token } = await supabase
+        .from("google_calendar_tokens")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!token || cancelled) return;
+
+      setAutoSyncing(true);
+      try {
+        const { start, end } = getDateRangeForWeek(weekYear, weekNumber);
+        const { data, error } = await supabase.functions.invoke("google-calendar-events", {
+          body: { startDate: start.toISOString(), endDate: end.toISOString() },
+        });
+        if (error || data?.error || cancelled) return;
+        const schedule = data?.schedule || [];
+
+        const displayName =
+          (user.user_metadata?.full_name as string | undefined) ||
+          (user.email?.split("@")[0]) || "Yo";
+
+        const mine = users.find((u) => u.user_id === user.id);
+        if (mine) {
+          await supabase.from("event_users").update({ schedule }).eq("id", mine.id);
+        } else if (schedule.length > 0) {
+          await supabase.from("event_users").insert({
+            event_id: id, name: displayName, schedule, user_id: user.id,
+          });
+        }
+        await supabase.from("google_calendar_tokens")
+          .update({ last_synced_at: new Date().toISOString() }).eq("user_id", user.id);
+      } catch (e) {
+        console.warn("Week sync failed:", e);
+      } finally {
+        if (!cancelled) setAutoSyncing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekYear, weekNumber]);
+
   const refreshFromGoogle = async () => {
     if (!user || !id) return;
     setAutoSyncing(true);
