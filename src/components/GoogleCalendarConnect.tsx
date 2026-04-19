@@ -68,7 +68,11 @@ const GoogleCalendarConnect = ({ variant = "card" }: Props) => {
       const start = new Date(now); start.setDate(now.getDate() - 7);
       const end = new Date(now); end.setDate(now.getDate() + 60);
       const { data, error } = await supabase.functions.invoke("google-calendar-events", {
-        body: { startDate: start.toISOString(), endDate: end.toISOString() },
+        body: {
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
