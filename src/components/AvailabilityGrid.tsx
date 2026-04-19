@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { BarChart3, Grid3X3, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,10 +35,33 @@ interface TooltipData {
   dayIdx: number;
 }
 
+// Color ramp from "no availability" -> "everyone available"
+// Uses HSL travelling from a soft red through amber to a vivid green.
+const rampColor = (t: number): [number, number, number] => {
+  // t in [0,1]; 0 = nobody free, 1 = everyone free
+  const tt = Math.max(0, Math.min(1, t));
+  // Hue: 8 (red) -> 45 (amber) -> 145 (green)
+  const hue = tt < 0.5 ? 8 + (45 - 8) * (tt / 0.5) : 45 + (145 - 45) * ((tt - 0.5) / 0.5);
+  const sat = 70 + tt * 15;
+  const light = 88 - tt * 38; // lighter on the bad side, deeper on the good side
+  return [hue, sat, light];
+};
+
+const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
+  s /= 100;
+  l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+};
+
 const AvailabilityGrid = ({ users, weekYear, weekNumber, onWeekChange }: Props) => {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-  const [heatmap, setHeatmap] = useState(false);
+  const [heatmap, setHeatmap] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const heatmapWrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const today = useMemo(() => getISOWeek(new Date()), []);
   const year = weekYear ?? today.year;
@@ -84,6 +107,7 @@ const AvailabilityGrid = ({ users, weekYear, weekNumber, onWeekChange }: Props) 
     return { busyUsers, total: totalUsers };
   }, [users]);
 
+  // Discrete cell style (fallback / "Discreto" mode)
   const getCellStyle = (busyCount: number) => {
     if (grid.total === 0) return "bg-free-light";
     const freeCount = grid.total - busyCount;
@@ -95,14 +119,124 @@ const AvailabilityGrid = ({ users, weekYear, weekNumber, onWeekChange }: Props) 
     return "bg-busy";
   };
 
-  const getHeatmapStyle = (busyCount: number): React.CSSProperties => {
-    if (grid.total === 0) return { backgroundColor: "hsl(152, 60%, 90%)" };
-    const ratio = (grid.total - busyCount) / grid.total;
-    const hue = ratio * 130;
-    const sat = 65 + ratio * 10;
-    const light = 40 + (1 - Math.abs(ratio - 0.5) * 2) * 15;
-    return { backgroundColor: `hsl(${hue}, ${sat}%, ${light}%)` };
-  };
+  // Smooth heatmap rendered via Canvas with bilinear interpolation between
+  // slot centers. Produces continuous color transitions between adjacent
+  // time cells and adjacent days, instead of solid rectangles.
+  useEffect(() => {
+    if (!heatmap) return;
+    const canvas = canvasRef.current;
+    const wrap = heatmapWrapRef.current;
+    if (!canvas || !wrap) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = wrap.clientWidth;
+    const cssH = wrap.clientHeight;
+    if (cssW === 0 || cssH === 0) return;
+
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const cols = 7;
+    const rows = timeSlots.length;
+    // Build a normalised availability field [0,1] per cell (1 = everyone free)
+    const field: number[][] = [];
+    for (let r = 0; r < rows; r++) {
+      const row: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        if (grid.total === 0) row.push(0.6);
+        else row.push((grid.total - grid.busyUsers[r][c].size) / grid.total);
+      }
+      field.push(row);
+    }
+
+    // Render at lower resolution and let the canvas scale: still smooth and fast.
+    const sampleW = Math.max(120, Math.floor(cssW / 2));
+    const sampleH = Math.max(120, Math.floor(cssH / 2));
+    const img = ctx.createImageData(sampleW, sampleH);
+
+    const colW = sampleW / cols;
+    const rowH = sampleH / rows;
+
+    for (let py = 0; py < sampleH; py++) {
+      // Map pixel to fractional grid coord (cell centers).
+      const gy = py / rowH - 0.5;
+      const r0 = Math.max(0, Math.min(rows - 1, Math.floor(gy)));
+      const r1 = Math.max(0, Math.min(rows - 1, r0 + 1));
+      const ty = Math.max(0, Math.min(1, gy - r0));
+
+      for (let px = 0; px < sampleW; px++) {
+        const gx = px / colW - 0.5;
+        const c0 = Math.max(0, Math.min(cols - 1, Math.floor(gx)));
+        const c1 = Math.max(0, Math.min(cols - 1, c0 + 1));
+        const tx = Math.max(0, Math.min(1, gx - c0));
+
+        const v00 = field[r0][c0];
+        const v10 = field[r0][c1];
+        const v01 = field[r1][c0];
+        const v11 = field[r1][c1];
+        // Bilinear interpolation.
+        const v0 = v00 * (1 - tx) + v10 * tx;
+        const v1 = v01 * (1 - tx) + v11 * tx;
+        const v = v0 * (1 - ty) + v1 * ty;
+
+        const [h, s, l] = rampColor(v);
+        const [R, G, B] = hslToRgb(h, s, l);
+        const idx = (py * sampleW + px) * 4;
+        img.data[idx] = R;
+        img.data[idx + 1] = G;
+        img.data[idx + 2] = B;
+        img.data[idx + 3] = 235;
+      }
+    }
+
+    // Draw via offscreen canvas so the browser scales smoothly.
+    const off = document.createElement("canvas");
+    off.width = sampleW;
+    off.height = sampleH;
+    off.getContext("2d")!.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(off, 0, 0, cssW, cssH);
+  }, [heatmap, grid, users.length]);
+
+  // Re-render heatmap on resize.
+  useEffect(() => {
+    if (!heatmap) return;
+    const obs = new ResizeObserver(() => {
+      // trigger by toggling a tiny state? Simpler: just re-run effect via a small forceUpdate hack.
+      // We dispatch a manual event; the effect above reads layout each call.
+      const canvas = canvasRef.current;
+      const wrap = heatmapWrapRef.current;
+      if (!canvas || !wrap) return;
+      // Re-run the same logic by dispatching a synthetic state change:
+      setRenderTick((t) => t + 1);
+    });
+    if (heatmapWrapRef.current) obs.observe(heatmapWrapRef.current);
+    return () => obs.disconnect();
+  }, [heatmap]);
+
+  const [renderTick, setRenderTick] = useState(0);
+  useEffect(() => {
+    // Re-run the canvas effect when tick changes by toggling a no-op dep.
+    // We rely on the previous effect's dep list; force by reading layout again here.
+    if (!heatmap) return;
+    const canvas = canvasRef.current;
+    const wrap = heatmapWrapRef.current;
+    if (!canvas || !wrap) return;
+    // Trigger by dispatching a microtask re-render:
+    const id = requestAnimationFrame(() => {
+      const evt = new Event("resize");
+      window.dispatchEvent(evt);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [renderTick, heatmap]);
 
   const handleMouseEnter = (e: React.MouseEvent, slotIdx: number, dayIdx: number) => {
     if (grid.total === 0) return;
@@ -187,56 +321,161 @@ const AvailabilityGrid = ({ users, weekYear, weekNumber, onWeekChange }: Props) 
           </div>
         )}
 
-        {grid.total > 0 && !heatmap && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
-            </span>
-          </div>
+        {grid.total > 0 && (
+          heatmap ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+              <span>Pocos disponibles</span>
+              <span
+                className="h-2 w-40 rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(to right, hsl(8,80%,55%), hsl(45,85%,60%), hsl(145,75%,42%))",
+                }}
+              />
+              <span>Todos disponibles</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-sm bg-free inline-block" /> Todos
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-sm bg-free-light inline-block" /> Algunos
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-sm bg-busy inline-block" /> Nadie
+              </span>
+            </div>
+          )
         )}
       </div>
 
       <div className="overflow-x-auto -mx-6 px-6">
-        <table className="w-full border-collapse min-w-[600px]">
-          <thead>
-            <tr>
-              <th className="w-20 text-xs font-medium text-muted-foreground text-left py-2" />
-              {DAYS.map((d) => (
-                <th key={d} className="text-xs font-semibold text-foreground text-center py-2 px-1">{d}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((slot, si) => (
-              <tr key={si}>
-                <td className="text-[10px] text-muted-foreground pr-2 py-0 align-top whitespace-nowrap">
-                  {slot.minute === 0 ? formatTime(slot.hour, slot.minute) : ""}
-                </td>
-                {DAYS.map((_, di) => {
-                  const busyCount = grid.busyUsers[si][di].size;
-                  return (
-                    <td key={di} className="p-[1px]">
+        <div className="min-w-[600px]">
+          {/* Day header */}
+          <div className="grid" style={{ gridTemplateColumns: "5rem repeat(7, minmax(0,1fr))" }}>
+            <div />
+            {DAYS.map((d) => (
+              <div key={d} className="text-xs font-semibold text-foreground text-center py-2 px-1">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {heatmap ? (
+            // Continuous heatmap: canvas underneath, transparent hit-grid above
+            <div
+              className="grid relative"
+              style={{ gridTemplateColumns: "5rem repeat(7, minmax(0,1fr))" }}
+            >
+              {/* Time labels column */}
+              <div className="flex flex-col">
+                {timeSlots.map((slot, si) => (
+                  <div
+                    key={si}
+                    className="text-[10px] text-muted-foreground pr-2 leading-none"
+                    style={{ height: 16 }}
+                  >
+                    {slot.minute === 0 ? formatTime(slot.hour, slot.minute) : ""}
+                  </div>
+                ))}
+              </div>
+
+              {/* Heatmap area spans the 7 day columns */}
+              <div
+                ref={heatmapWrapRef}
+                className="relative col-span-7 rounded-md overflow-hidden"
+                style={{ height: timeSlots.length * 16 }}
+              >
+                <canvas ref={canvasRef} className="absolute inset-0 block" />
+
+                {/* Subtle horizontal divider lines every 30 minutes */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {timeSlots.map((slot, si) => (
+                    <div
+                      key={si}
+                      className="absolute left-0 right-0"
+                      style={{
+                        top: si * 16,
+                        height: 1,
+                        background:
+                          slot.minute === 0
+                            ? "hsl(var(--foreground) / 0.08)"
+                            : "hsl(var(--foreground) / 0.04)",
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Subtle day separators */}
+                <div className="absolute inset-0 pointer-events-none flex">
+                  {DAYS.map((_, di) => (
+                    <div
+                      key={di}
+                      className="flex-1"
+                      style={{
+                        borderRight:
+                          di < DAYS.length - 1
+                            ? "1px solid hsl(var(--foreground) / 0.06)"
+                            : undefined,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Invisible hit-grid for tooltips */}
+                <div
+                  className="absolute inset-0 grid"
+                  style={{
+                    gridTemplateColumns: "repeat(7, minmax(0,1fr))",
+                    gridTemplateRows: `repeat(${timeSlots.length}, 16px)`,
+                  }}
+                >
+                  {timeSlots.map((_, si) =>
+                    DAYS.map((_, di) => (
                       <div
-                        className={`h-4 rounded-[3px] transition-colors cursor-pointer hover:ring-2 hover:ring-primary/40 ${
-                          heatmap ? "" : getCellStyle(busyCount)
-                        }`}
-                        style={heatmap ? getHeatmapStyle(busyCount) : undefined}
+                        key={`${si}-${di}`}
                         onMouseEnter={(e) => handleMouseEnter(e, si, di)}
                         onMouseLeave={handleMouseLeave}
+                        className="hover:ring-1 hover:ring-primary/40 hover:ring-inset cursor-pointer"
                       />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Discrete grid mode (kept as fallback)
+            <table className="w-full border-collapse">
+              <tbody>
+                {timeSlots.map((slot, si) => (
+                  <tr key={si}>
+                    <td
+                      className="text-[10px] text-muted-foreground pr-2 py-0 align-top whitespace-nowrap"
+                      style={{ width: "5rem" }}
+                    >
+                      {slot.minute === 0 ? formatTime(slot.hour, slot.minute) : ""}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    {DAYS.map((_, di) => {
+                      const busyCount = grid.busyUsers[si][di].size;
+                      return (
+                        <td key={di} className="p-[1px]">
+                          <div
+                            className={`h-4 rounded-[3px] transition-colors cursor-pointer hover:ring-2 hover:ring-primary/40 ${getCellStyle(
+                              busyCount
+                            )}`}
+                            onMouseEnter={(e) => handleMouseEnter(e, si, di)}
+                            onMouseLeave={handleMouseLeave}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {tooltip && tooltipContent && (
