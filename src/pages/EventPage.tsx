@@ -114,8 +114,9 @@ const EventPage = () => {
       setAutoSyncing(true);
       try {
         const { start, end } = getDateRangeForWeek(weekYear, weekNumber);
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const { data, error } = await supabase.functions.invoke("google-calendar-events", {
-          body: { startDate: start.toISOString(), endDate: end.toISOString() },
+          body: { startDate: start.toISOString(), endDate: end.toISOString(), timeZone: tz },
         });
         if (error || data?.error) return;
         const schedule = data?.schedule || [];
@@ -157,8 +158,9 @@ const EventPage = () => {
       setAutoSyncing(true);
       try {
         const { start, end } = getDateRangeForWeek(weekYear, weekNumber);
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const { data, error } = await supabase.functions.invoke("google-calendar-events", {
-          body: { startDate: start.toISOString(), endDate: end.toISOString() },
+          body: { startDate: start.toISOString(), endDate: end.toISOString(), timeZone: tz },
         });
         if (error || data?.error || cancelled) return;
         const schedule = data?.schedule || [];
@@ -192,8 +194,9 @@ const EventPage = () => {
     setAutoSyncing(true);
     try {
       const { start, end } = getDateRangeForWeek(weekYear, weekNumber);
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const { data, error } = await supabase.functions.invoke("google-calendar-events", {
-        body: { startDate: start.toISOString(), endDate: end.toISOString() },
+        body: { startDate: start.toISOString(), endDate: end.toISOString(), timeZone: tz },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);

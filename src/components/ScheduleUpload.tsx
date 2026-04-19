@@ -147,7 +147,11 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
     setProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke("google-calendar-events", {
-        body: { startDate: gcalDateFrom.toISOString(), endDate: gcalDateTo.toISOString() },
+        body: {
+          startDate: gcalDateFrom.toISOString(),
+          endDate: gcalDateTo.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
