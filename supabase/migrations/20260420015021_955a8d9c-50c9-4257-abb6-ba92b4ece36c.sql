@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.app_secrets FROM PUBLIC, anon, authenticated;

@@ -132,13 +132,11 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
 
   const disconnectGoogleCalendar = async () => {
     if (!user) return;
-    const { error } = await supabase
-      .from("google_calendar_tokens")
-      .delete()
-      .eq("user_id", user.id);
+    // Server-side disconnect (revokes at Google + deletes row).
+    const { error } = await supabase.functions.invoke("google-calendar-disconnect");
     if (error) { toast.error("Error al desconectar"); return; }
     setGcalConnected(false);
-    toast.success("Google Calendar desconectado");
+    toast.success("Google Calendar desconectado y revocado");
   };
 
   const importFromGoogleCalendar = async () => {

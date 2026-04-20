@@ -52,12 +52,14 @@ const GoogleCalendarConnect = ({ variant = "card" }: Props) => {
   const disconnect = async () => {
     if (!user) return;
     setWorking(true);
-    const { error } = await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+    // Route through the edge function so the refresh token is REVOKED at Google
+    // before the row is deleted. Never delete the row directly from the client.
+    const { error } = await supabase.functions.invoke("google-calendar-disconnect");
     setWorking(false);
     if (error) { toast.error("Error al desconectar"); return; }
     setConnected(false);
     setLastSynced(null);
-    toast.success("Google Calendar desconectado");
+    toast.success("Google Calendar desconectado y revocado");
   };
 
   const sync = async () => {
