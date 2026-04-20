@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_secrets: {
+        Row: {
+          created_at: string
+          key: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       event_invitations: {
         Row: {
           created_at: string
@@ -124,34 +142,40 @@ export type Database = {
       }
       google_calendar_tokens: {
         Row: {
-          access_token: string
+          access_token: string | null
+          access_token_enc: string | null
           created_at: string
           expires_at: string
           id: string
           last_synced_at: string | null
           refresh_token: string | null
+          refresh_token_enc: string | null
           scope: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          access_token: string
+          access_token?: string | null
+          access_token_enc?: string | null
           created_at?: string
           expires_at: string
           id?: string
           last_synced_at?: string | null
           refresh_token?: string | null
+          refresh_token_enc?: string | null
           scope?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          access_token?: string
+          access_token?: string | null
+          access_token_enc?: string | null
           created_at?: string
           expires_at?: string
           id?: string
           last_synced_at?: string | null
           refresh_token?: string | null
+          refresh_token_enc?: string | null
           scope?: string | null
           updated_at?: string
           user_id?: string
@@ -206,6 +230,36 @@ export type Database = {
         }
         Relationships: []
       }
+      security_audit_log: {
+        Row: {
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_groups: {
         Row: {
           group_id: string
@@ -243,6 +297,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _gcal_key_text: { Args: never; Returns: string }
+      gcal_decrypt: { Args: { ciphertext: string }; Returns: string }
+      gcal_encrypt: { Args: { plaintext: string }; Returns: string }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
