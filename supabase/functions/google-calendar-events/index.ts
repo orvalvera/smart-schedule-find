@@ -125,24 +125,28 @@ Deno.serve(async (req) => {
     }
     const tz = (typeof timeZone === "string" && timeZone) ? timeZone : "UTC";
 
-    // Read encrypted token row; service role bypasses RLS. We scope by user_id explicitly.
-    const { data: tokenRow, error: tokenErr } = await adminClient
-      .from("google_calendar_tokens")
-      .select("expires_at, access_token_enc, refresh_token_enc")
-      .eq("user_id", userId)
-      .maybeSingle();
+    // Fetch decrypted tokens via a SECURITY DEFINER RPC. We never round-trip
+    // bytea ciphertext through PostgREST (it serializes as a hex string and
+    // can't be safely re-passed to another RPC).
+    const { data: tokenRows, error: tokenErr } = await adminClient
+      .rpc("gcal_get_tokens", { _user_id: userId });
 
-    if (tokenErr || !tokenRow) {
+    if (tokenErr) {
+      console.error("gcal_get_tokens error:", tokenErr.message);
+      return new Response(JSON.stringify({ error: "Token lookup failed" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const tokenRow = Array.isArray(tokenRows) ? tokenRows[0] : tokenRows;
+    if (!tokenRow) {
       return new Response(JSON.stringify({ error: "Google Calendar not connected" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Decrypt server-side.
-    const { data: accessPlain } = await adminClient.rpc("gcal_decrypt", {
-      ciphertext: tokenRow.access_token_enc,
-    });
-    let accessToken = accessPlain as string | null;
+    let accessToken = tokenRow.access_token as string | null;
+    const refreshToken = tokenRow.refresh_token as string | null;
+    const expiresAt = tokenRow.expires_at as string;
 
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "Token unavailable. Please reconnect." }), {
@@ -150,27 +154,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (new Date(tokenRow.expires_at).getTime() < Date.now() + 60_000) {
-      if (!tokenRow.refresh_token_enc) {
+    if (new Date(expiresAt).getTime() < Date.now() + 60_000) {
+      if (!refreshToken) {
         return new Response(JSON.stringify({ error: "Token expired. Please reconnect." }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { data: refreshPlain } = await adminClient.rpc("gcal_decrypt", {
-        ciphertext: tokenRow.refresh_token_enc,
-      });
-      if (!refreshPlain) {
-        return new Response(JSON.stringify({ error: "Refresh token unavailable. Please reconnect." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const refreshed = await refreshAccessToken(refreshPlain as string);
+      const refreshed = await refreshAccessToken(refreshToken);
       accessToken = refreshed.access_token;
       const newExpiry = new Date(Date.now() + (refreshed.expires_in ?? 3600) * 1000).toISOString();
-      const { data: encNew } = await adminClient.rpc("gcal_encrypt", { plaintext: accessToken });
-      await adminClient.from("google_calendar_tokens").update({
-        access_token_enc: encNew, expires_at: newExpiry,
-      }).eq("user_id", userId);
+      const { error: updErr } = await adminClient.rpc("gcal_update_access_token", {
+        _user_id: userId, _new_access: accessToken, _new_expires: newExpiry,
+      });
+      if (updErr) console.error("gcal_update_access_token error:", updErr.message);
       await audit(adminClient, userId, "gcal_refresh", {}, req);
     }
 
@@ -274,7 +270,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("events error:", (e as Error).name);
+    const err = e as Error;
+    console.error("events error:", err.name, err.message, err.stack);
     return new Response(JSON.stringify({ error: "Unexpected error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
