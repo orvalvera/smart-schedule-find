@@ -63,7 +63,7 @@ const Index = () => {
       const { error: joinErr } = await supabase.from("user_groups").insert({
         user_id: user.id,
         group_id: data.id,
-        role: "admin",
+        role: "member",
       });
       if (joinErr) console.warn("user_groups insert:", joinErr);
       toast.success("Grupo creado");

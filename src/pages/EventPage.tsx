@@ -129,8 +129,6 @@ const EventPage = () => {
         await supabase.from("event_users").insert({
           event_id: id, name: displayName, schedule, user_id: user.id,
         });
-        await supabase.from("google_calendar_tokens")
-          .update({ last_synced_at: new Date().toISOString() }).eq("user_id", user.id);
         toast.success(`Tu disponibilidad fue importada desde Google Calendar (${schedule.length} eventos)`);
       } catch (e) {
         console.warn("Auto-sync failed:", e);
@@ -177,8 +175,6 @@ const EventPage = () => {
             event_id: id, name: displayName, schedule, user_id: user.id,
           });
         }
-        await supabase.from("google_calendar_tokens")
-          .update({ last_synced_at: new Date().toISOString() }).eq("user_id", user.id);
       } catch (e) {
         console.warn("Week sync failed:", e);
       } finally {
@@ -215,8 +211,6 @@ const EventPage = () => {
           event_id: id, name: displayName, schedule, user_id: user.id,
         });
       }
-      await supabase.from("google_calendar_tokens")
-        .update({ last_synced_at: new Date().toISOString() }).eq("user_id", user.id);
       toast.success(`Disponibilidad actualizada (${schedule.length} eventos)`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error al sincronizar";
