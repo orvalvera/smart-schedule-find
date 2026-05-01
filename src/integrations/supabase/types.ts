@@ -300,6 +300,18 @@ export type Database = {
       _gcal_key_text: { Args: never; Returns: string }
       gcal_decrypt: { Args: { ciphertext: string }; Returns: string }
       gcal_encrypt: { Args: { plaintext: string }; Returns: string }
+      gcal_get_tokens: {
+        Args: { _user_id: string }
+        Returns: {
+          access_token: string
+          expires_at: string
+          refresh_token: string
+        }[]
+      }
+      gcal_update_access_token: {
+        Args: { _new_access: string; _new_expires: string; _user_id: string }
+        Returns: undefined
+      }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
