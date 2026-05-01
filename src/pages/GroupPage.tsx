@@ -30,7 +30,10 @@ const GroupPage = () => {
     if (!id || !user) return;
     supabase
       .from("user_groups")
-      .upsert({ user_id: user.id, group_id: id }, { onConflict: "user_id,group_id" })
+      .upsert(
+        { user_id: user.id, group_id: id, role: "member" },
+        { onConflict: "user_id,group_id", ignoreDuplicates: true }
+      )
       .then();
   }, [id, user]);
 

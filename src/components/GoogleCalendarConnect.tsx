@@ -78,8 +78,6 @@ const GoogleCalendarConnect = ({ variant = "card" }: Props) => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      await supabase.from("google_calendar_tokens")
-        .update({ last_synced_at: new Date().toISOString() }).eq("user_id", user.id);
       await refreshStatus();
       toast.success(`Calendario sincronizado (${data?.count ?? 0} eventos)`);
     } catch (err) {
