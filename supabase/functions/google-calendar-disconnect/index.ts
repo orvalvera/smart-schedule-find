@@ -59,26 +59,18 @@ Deno.serve(async (req) => {
     }
     const userId = claims.claims.sub as string;
 
-    const { data: row } = await admin
-      .from("google_calendar_tokens")
-      .select("refresh_token_enc, access_token_enc")
-      .eq("user_id", userId)
-      .maybeSingle();
-
+    const { data: tokenRows } = await admin.rpc("gcal_get_tokens", { _user_id: userId });
+    const row = Array.isArray(tokenRows) ? tokenRows[0] : tokenRows;
     if (row) {
-      // Try to revoke the refresh token first; fall back to access token.
-      const enc = row.refresh_token_enc ?? row.access_token_enc;
-      if (enc) {
-        const { data: plain } = await admin.rpc("gcal_decrypt", { ciphertext: enc });
-        if (plain) {
-          try {
-            await fetch("https://oauth2.googleapis.com/revoke", {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams({ token: plain as string }),
-            });
-          } catch (_) { /* even if revoke fails, we still delete the row */ }
-        }
+      const plain = (row.refresh_token ?? row.access_token) as string | null;
+      if (plain) {
+        try {
+          await fetch("https://oauth2.googleapis.com/revoke", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ token: plain }),
+          });
+        } catch (_) { /* even if revoke fails, we still delete the row */ }
       }
       await admin.from("google_calendar_tokens").delete().eq("user_id", userId);
     }
