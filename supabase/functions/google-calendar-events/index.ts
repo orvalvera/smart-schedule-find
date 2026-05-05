@@ -1,7 +1,7 @@
 // =============================================================================
 // SECURITY CHECKLIST — Google Calendar Events Sync
 // -----------------------------------------------------------------------------
-// 1. JWT validated via getClaims(); only the owning user can read their tokens.
+// 1. JWT validated via getUser(); only the owning user can read their tokens.
 // 2. Tokens are decrypted server-side via public.gcal_decrypt() — plaintext
 //    never crosses the network or hits a log.
 // 3. Token refresh happens here; the new access token is re-encrypted before
@@ -18,7 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface ScheduleEvent {
@@ -108,14 +108,14 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
     const jwt = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(jwt);
-    if (claimsErr || !claims?.claims?.sub) {
+    const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
+    if (userErr || !userData?.user?.id) {
       await audit(adminClient, null, "auth_fail", { fn: "events" }, req);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claims.claims.sub as string;
+    const userId = userData.user.id;
 
     const { startDate, endDate, timeZone } = await req.json();
     if (typeof startDate !== "string" || typeof endDate !== "string") {
@@ -139,8 +139,8 @@ Deno.serve(async (req) => {
     }
     const tokenRow = Array.isArray(tokenRows) ? tokenRows[0] : tokenRows;
     if (!tokenRow) {
-      return new Response(JSON.stringify({ error: "Google Calendar not connected" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Google Calendar no está conectado. Vuelve a conectarlo.", requiresReconnect: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -149,18 +149,32 @@ Deno.serve(async (req) => {
     const expiresAt = tokenRow.expires_at as string;
 
     if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Token unavailable. Please reconnect." }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+      await audit(adminClient, userId, "gcal_reconnect_required", { reason: "missing_access_token" }, req);
+      return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Vuelve a conectarla.", requiresReconnect: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (new Date(expiresAt).getTime() < Date.now() + 60_000) {
       if (!refreshToken) {
-        return new Response(JSON.stringify({ error: "Token expired. Please reconnect." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+        await audit(adminClient, userId, "gcal_reconnect_required", { reason: "missing_refresh_token" }, req);
+        return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Vuelve a conectarla.", requiresReconnect: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const refreshed = await refreshAccessToken(refreshToken);
+      let refreshed: Awaited<ReturnType<typeof refreshAccessToken>>;
+      try {
+        refreshed = await refreshAccessToken(refreshToken);
+      } catch (refreshErr) {
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+        await audit(adminClient, userId, "gcal_refresh_fail", { reason: "google_rejected_refresh" }, req);
+        console.error("gcal refresh failed:", (refreshErr as Error).message);
+        return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Vuelve a conectarla.", requiresReconnect: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       accessToken = refreshed.access_token;
       const newExpiry = new Date(Date.now() + (refreshed.expires_in ?? 3600) * 1000).toISOString();
       const { error: updErr } = await adminClient.rpc("gcal_update_access_token", {
@@ -179,13 +193,35 @@ Deno.serve(async (req) => {
       timeZone: tz,
     });
 
-    const evRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+    let evRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!evRes.ok) {
+      if ((evRes.status === 401 || evRes.status === 403) && refreshToken) {
+        try {
+          const refreshed = await refreshAccessToken(refreshToken);
+          accessToken = refreshed.access_token;
+          const newExpiry = new Date(Date.now() + (refreshed.expires_in ?? 3600) * 1000).toISOString();
+          await adminClient.rpc("gcal_update_access_token", {
+            _user_id: userId, _new_access: accessToken, _new_expires: newExpiry,
+          });
+          evRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+        } catch (_) { /* handled below */ }
+      }
+    }
+    if (!evRes.ok) {
       // Don't leak Google's response body to the client.
-      return new Response(JSON.stringify({ error: "Failed to fetch events" }), {
-        status: evRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (evRes.status === 401 || evRes.status === 403) {
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+        await audit(adminClient, userId, "gcal_reconnect_required", { reason: "google_calendar_denied" }, req);
+        return new Response(JSON.stringify({ error: "Google Calendar rechazó el acceso. Vuelve a conectarlo.", requiresReconnect: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: "No se pudieron leer los eventos de Google Calendar. Intenta de nuevo." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const evData = await evRes.json();

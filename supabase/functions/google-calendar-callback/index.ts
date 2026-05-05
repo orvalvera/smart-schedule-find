@@ -1,7 +1,7 @@
 // =============================================================================
 // SECURITY CHECKLIST — Google Calendar OAuth Callback
 // -----------------------------------------------------------------------------
-// 1. JWT validated via getClaims() before doing anything (no anonymous calls).
+// 1. JWT validated via getUser() before doing anything (no anonymous calls).
 // 2. redirect_uri is validated against an allow-list (origin must match the
 //    project domain) to prevent open-redirect / token-injection attacks.
 // 3. GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET come from Lovable Cloud secrets,
@@ -17,7 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 // Allow-list of redirect-URI origins. Add custom domains here.
@@ -78,14 +78,14 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
     const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claims?.claims?.sub) {
+    const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+    if (userErr || !userData?.user?.id) {
       await audit(admin, null, "auth_fail", { fn: "callback", reason: "invalid_jwt" }, req);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claims.claims.sub as string;
+    const userId = userData.user.id;
 
     const { code, redirectUri } = await req.json();
     if (typeof code !== "string" || typeof redirectUri !== "string") {
