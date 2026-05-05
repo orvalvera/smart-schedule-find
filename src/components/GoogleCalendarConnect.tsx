@@ -77,6 +77,10 @@ const GoogleCalendarConnect = ({ variant = "card" }: Props) => {
         },
       });
       if (error) throw error;
+      if (data?.requiresReconnect) {
+        setConnected(false);
+        setLastSynced(null);
+      }
       if (data?.error) throw new Error(data.error);
       await refreshStatus();
       toast.success(`Calendario sincronizado (${data?.count ?? 0} eventos)`);
