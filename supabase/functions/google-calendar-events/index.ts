@@ -139,8 +139,8 @@ Deno.serve(async (req) => {
     }
     const tokenRow = Array.isArray(tokenRows) ? tokenRows[0] : tokenRows;
     if (!tokenRow) {
-      return new Response(JSON.stringify({ error: "Google Calendar not connected" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Google Calendar no está conectado. Vuelve a conectarlo.", requiresReconnect: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -149,25 +149,30 @@ Deno.serve(async (req) => {
     const expiresAt = tokenRow.expires_at as string;
 
     if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Token unavailable. Please reconnect." }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+      await audit(adminClient, userId, "gcal_reconnect_required", { reason: "missing_access_token" }, req);
+      return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Vuelve a conectarla.", requiresReconnect: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (new Date(expiresAt).getTime() < Date.now() + 60_000) {
       if (!refreshToken) {
-        return new Response(JSON.stringify({ error: "Token expired. Please reconnect." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
+        await audit(adminClient, userId, "gcal_reconnect_required", { reason: "missing_refresh_token" }, req);
+        return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Vuelve a conectarla.", requiresReconnect: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       let refreshed: Awaited<ReturnType<typeof refreshAccessToken>>;
       try {
         refreshed = await refreshAccessToken(refreshToken);
       } catch (refreshErr) {
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", userId);
         await audit(adminClient, userId, "gcal_refresh_fail", { reason: "google_rejected_refresh" }, req);
         console.error("gcal refresh failed:", (refreshErr as Error).message);
         return new Response(JSON.stringify({ error: "La conexión con Google Calendar caducó. Desconecta y vuelve a conectar Google Calendar." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       accessToken = refreshed.access_token;
