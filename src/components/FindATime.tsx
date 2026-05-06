@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Sparkles, Loader2, Calendar } from "lucide-react";
+import { Sparkles, Loader2, Calendar, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { downloadICS, nextOccurrenceLocal } from "@/lib/ics";
 
 interface Suggestion {
   rank: number;
@@ -42,6 +43,22 @@ const FindATime = ({ eventId }: { eventId: string }) => {
       toast.error(err instanceof Error ? err.message : "Error al buscar horarios");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportIcs = (s: Suggestion) => {
+    try {
+      const start = nextOccurrenceLocal(s.day, s.start);
+      const end = nextOccurrenceLocal(s.day, s.end);
+      if (end.getTime() <= start.getTime()) end.setDate(end.getDate() + 0);
+      downloadICS(`reunion-${s.dayName}-${s.start}.ics`, {
+        title: `Reunión sugerida (${s.durationMin} min)`,
+        description: s.reason,
+        start, end,
+      });
+      toast.success(".ics descargado");
+    } catch {
+      toast.error("No se pudo generar el .ics");
     }
   };
 
@@ -99,6 +116,9 @@ const FindATime = ({ eventId }: { eventId: string }) => {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{s.reason}</p>
               </div>
+              <Button variant="ghost" size="sm" className="shrink-0" onClick={() => exportIcs(s)} aria-label="Descargar .ics">
+                <Download className="h-4 w-4" />
+              </Button>
             </li>
           ))}
         </ul>
