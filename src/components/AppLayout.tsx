@@ -2,12 +2,14 @@ import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { toast } from "sonner";
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const { user, signOut } = useAuth();
+  const { theme, toggle } = useTheme();
 
   return (
     <SidebarProvider>
@@ -20,6 +22,9 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
               <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[200px]">
                 {user?.user_metadata?.full_name || user?.email}
               </span>
+              <Button variant="ghost" size="sm" onClick={toggle} aria-label="Cambiar tema">
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
               <Button variant="ghost" size="sm" onClick={async () => { await signOut(); toast.success("Sesión cerrada"); }}>
                 <LogOut className="h-4 w-4" />
               </Button>
