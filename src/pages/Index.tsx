@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn, CalendarDays, FolderKanban, Inbox } from "lucide-react";
+import { Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn, CalendarDays, FolderKanban, Inbox, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useCallback } from "react";
@@ -30,6 +30,7 @@ const Index = () => {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [myGroups, setMyGroups] = useState<GroupItem[] | null>(null);
   const [myEvents, setMyEvents] = useState<EventItem[] | null>(null);
+  const [search, setSearch] = useState("");
 
   const loadHome = useCallback(async () => {
     if (!user) return;
@@ -119,6 +120,10 @@ const Index = () => {
     else toast.error("Link no válido. Pega el link completo del grupo o evento.");
   };
 
+  const norm = (s: string) => s.toLowerCase().trim();
+  const filteredGroups = myGroups?.filter((g) => norm(g.name).includes(norm(search))) ?? null;
+  const filteredEvents = myEvents?.filter((e) => norm(e.name || "evento sin nombre").includes(norm(search))) ?? null;
+
   return (
     <div className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
@@ -184,29 +189,40 @@ const Index = () => {
         </div>
 
         <section className="space-y-3 pt-4">
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar grupo o evento por nombre..."
+              className="pl-9"
+            />
+          </div>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <FolderKanban className="h-5 w-5 text-primary" /> Mis grupos
             </h2>
-            {myGroups && myGroups.length > 0 && (
-              <span className="text-xs text-muted-foreground">{myGroups.length} en total</span>
+            {filteredGroups && filteredGroups.length > 0 && (
+              <span className="text-xs text-muted-foreground">{filteredGroups.length} {search ? "encontrados" : "en total"}</span>
             )}
           </div>
-          {myGroups === null ? (
+          {filteredGroups === null ? (
             <div className="grid sm:grid-cols-2 gap-3">
               <Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" />
             </div>
-          ) : myGroups.length === 0 ? (
+          ) : filteredGroups.length === 0 ? (
             <div className="bg-card border border-dashed border-border rounded-xl p-6 text-center space-y-2">
               <Inbox className="h-8 w-8 mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Aún no perteneces a ningún grupo.</p>
+              <p className="text-sm text-muted-foreground">{search ? "Ningún grupo coincide con tu búsqueda." : "Aún no perteneces a ningún grupo."}</p>
+              {!search && (
               <Button variant="outline" size="sm" onClick={() => setGroupDialog(true)}>
                 <FolderPlus className="mr-2 h-4 w-4" /> Crear mi primer grupo
               </Button>
+              )}
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
-              {myGroups.map((g) => (
+              {filteredGroups.map((g) => (
                 <button
                   key={g.id}
                   onClick={() => navigate(`/group/${g.id}`)}
@@ -229,17 +245,17 @@ const Index = () => {
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" /> Eventos recientes
           </h2>
-          {myEvents === null ? (
+          {filteredEvents === null ? (
             <div className="space-y-2">
               <Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" />
             </div>
-          ) : myEvents.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <div className="bg-card border border-dashed border-border rounded-xl p-6 text-center">
-              <p className="text-sm text-muted-foreground">Aún no hay eventos. Crea uno para empezar.</p>
+              <p className="text-sm text-muted-foreground">{search ? "Ningún evento coincide con tu búsqueda." : "Aún no hay eventos. Crea uno para empezar."}</p>
             </div>
           ) : (
             <ul className="space-y-2">
-              {myEvents.map((e) => (
+              {filteredEvents.map((e) => (
                 <li key={e.id}>
                   <button
                     onClick={() => navigate(`/event/${e.id}`)}
