@@ -1,10 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn } from "lucide-react";
+import { Sparkles, Users, Clock, ArrowRight, FolderPlus, LogIn, CalendarDays, FolderKanban, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,9 @@ import {
 import { Input } from "@/components/ui/input";
 import GoogleCalendarConnect from "@/components/GoogleCalendarConnect";
 
+interface GroupItem { id: string; name: string }
+interface EventItem { id: string; name: string; group_id: string | null; created_at: string }
+
 const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -24,6 +28,30 @@ const Index = () => {
   const [groupName, setGroupName] = useState("");
   const [joinLink, setJoinLink] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [myGroups, setMyGroups] = useState<GroupItem[] | null>(null);
+  const [myEvents, setMyEvents] = useState<EventItem[] | null>(null);
+
+  const loadHome = useCallback(async () => {
+    if (!user) return;
+    const [{ data: ug }, { data: evts }] = await Promise.all([
+      supabase
+        .from("user_groups")
+        .select("group_id, groups:group_id(id, name)")
+        .eq("user_id", user.id),
+      supabase
+        .from("events")
+        .select("id, name, group_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(6),
+    ]);
+    const groups = (ug ?? [])
+      .map((r) => (r as unknown as { groups: GroupItem | null }).groups)
+      .filter((g): g is GroupItem => !!g);
+    setMyGroups(groups);
+    setMyEvents((evts ?? []) as EventItem[]);
+  }, [user]);
+
+  useEffect(() => { loadHome(); }, [loadHome]);
 
   const createEvent = async () => {
     setLoading(true);
@@ -154,6 +182,82 @@ const Index = () => {
             </div>
           ))}
         </div>
+
+        <section className="space-y-3 pt-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <FolderKanban className="h-5 w-5 text-primary" /> Mis grupos
+            </h2>
+            {myGroups && myGroups.length > 0 && (
+              <span className="text-xs text-muted-foreground">{myGroups.length} en total</span>
+            )}
+          </div>
+          {myGroups === null ? (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" />
+            </div>
+          ) : myGroups.length === 0 ? (
+            <div className="bg-card border border-dashed border-border rounded-xl p-6 text-center space-y-2">
+              <Inbox className="h-8 w-8 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Aún no perteneces a ningún grupo.</p>
+              <Button variant="outline" size="sm" onClick={() => setGroupDialog(true)}>
+                <FolderPlus className="mr-2 h-4 w-4" /> Crear mi primer grupo
+              </Button>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {myGroups.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => navigate(`/group/${g.id}`)}
+                  className="bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover:shadow-sm transition-all flex items-center gap-3"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center text-accent-foreground font-semibold">
+                    {g.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">Abrir grupo</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-primary" /> Eventos recientes
+          </h2>
+          {myEvents === null ? (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" />
+            </div>
+          ) : myEvents.length === 0 ? (
+            <div className="bg-card border border-dashed border-border rounded-xl p-6 text-center">
+              <p className="text-sm text-muted-foreground">Aún no hay eventos. Crea uno para empezar.</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {myEvents.map((e) => (
+                <li key={e.id}>
+                  <button
+                    onClick={() => navigate(`/event/${e.id}`)}
+                    className="w-full bg-card border border-border rounded-xl p-3 text-left hover:border-primary/40 transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">{e.name || "Evento sin nombre"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(e.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
       <Dialog open={groupDialog} onOpenChange={setGroupDialog}>
