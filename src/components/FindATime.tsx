@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Sparkles, Loader2, Calendar, Download } from "lucide-react";
+import { Sparkles, Loader2, Calendar, Download, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { downloadICS, nextOccurrenceLocal } from "@/lib/ics";
@@ -21,13 +23,15 @@ const FindATime = ({ eventId }: { eventId: string }) => {
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [duration, setDuration] = useState("60");
+  const [timeOfDay, setTimeOfDay] = useState("any");
+  const [weekdaysOnly, setWeekdaysOnly] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
 
   const find = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("find-a-time", {
-        body: { eventId, durationMin: parseInt(duration) },
+        body: { eventId, durationMin: parseInt(duration), timeOfDay, weekdaysOnly },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -69,7 +73,7 @@ const FindATime = ({ eventId }: { eventId: string }) => {
           <Sparkles className="h-5 w-5 text-primary" />
           <h3 className="font-semibold text-foreground">Encontrar la mejor hora</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={duration} onValueChange={setDuration} disabled={loading}>
             <SelectTrigger className="h-9 w-[120px] text-xs">
               <SelectValue />
@@ -81,7 +85,18 @@ const FindATime = ({ eventId }: { eventId: string }) => {
               <SelectItem value="120">2 horas</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={find} disabled={loading} size="sm">
+          <Select value={timeOfDay} onValueChange={setTimeOfDay} disabled={loading}>
+            <SelectTrigger className="h-9 w-[130px] text-xs" aria-label="Franja horaria">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover">
+              <SelectItem value="any">Cualquier hora</SelectItem>
+              <SelectItem value="morning">Mañana</SelectItem>
+              <SelectItem value="afternoon">Tarde</SelectItem>
+              <SelectItem value="evening">Noche</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={find} disabled={loading} size="sm" aria-label="Buscar mejores horarios">
             {loading ? (
               <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Analizando…</>
             ) : (
@@ -89,6 +104,12 @@ const FindATime = ({ eventId }: { eventId: string }) => {
             )}
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Filter className="h-3.5 w-3.5" />
+        <Label htmlFor="weekdays-only" className="cursor-pointer">Solo días laborables (Lun–Vie)</Label>
+        <Switch id="weekdays-only" checked={weekdaysOnly} onCheckedChange={setWeekdaysOnly} disabled={loading} />
       </div>
 
       {suggestions === null ? (

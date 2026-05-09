@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { eventId, durationMin = 60 } = await req.json();
+    const { eventId, durationMin = 60, timeOfDay = "any", weekdaysOnly = false } = await req.json();
     if (!eventId) {
       return new Response(JSON.stringify({ error: "eventId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -133,7 +133,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const candidates = computeFreeSlots(participants, durationMin);
+    let candidates = computeFreeSlots(participants, durationMin);
+
+    // Apply user filters
+    const inRange = (hhmm: string, fromH: number, toH: number) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      const min = h * 60 + m;
+      return min >= fromH * 60 && min <= toH * 60;
+    };
+    if (weekdaysOnly) candidates = candidates.filter((c) => c.day >= 1 && c.day <= 5);
+    if (timeOfDay === "morning") candidates = candidates.filter((c) => inRange(c.start, 6, 12));
+    else if (timeOfDay === "afternoon") candidates = candidates.filter((c) => inRange(c.start, 12, 18));
+    else if (timeOfDay === "evening") candidates = candidates.filter((c) => inRange(c.start, 18, 23));
 
     // Limit to top 30 raw candidates to keep prompt small
     const topRaw = candidates.slice(0, 30);
