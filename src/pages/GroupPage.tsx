@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Plus, Users, Link2, Check, ArrowLeft, LogOut } from "lucide-react";
+import { Calendar, Plus, Users, Link2, Check, ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,8 @@ const GroupPage = () => {
   const [newEventName, setNewEventName] = useState("");
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Auto-join group on visit
   useEffect(() => {
@@ -70,6 +72,21 @@ const GroupPage = () => {
   useEffect(() => {
     fetchGroup();
   }, [fetchGroup]);
+
+  const generateSummary = async () => {
+    if (!id) return;
+    setSummaryLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("group-summary", { body: { groupId: id } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setSummary(data?.summary ?? "");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar resumen");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   const createEvent = async () => {
     if (!newEventName.trim()) {
@@ -121,9 +138,26 @@ const GroupPage = () => {
           <div className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground font-mono truncate">
             {shareUrl}
           </div>
-          <Button onClick={copyLink} variant="outline" size="sm">
+          <Button onClick={copyLink} variant="outline" size="sm" aria-label="Copiar link del grupo">
             {copied ? <><Check className="h-4 w-4 mr-1" /> Copiado</> : <><Link2 className="h-4 w-4 mr-1" /> Copiar</>}
           </Button>
+        </div>
+
+        <div className="bg-card rounded-xl border border-border p-6 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Resumen del grupo
+            </h3>
+            <Button onClick={generateSummary} disabled={summaryLoading} size="sm" variant="outline" aria-label="Generar resumen con IA">
+              {summaryLoading ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generando…</> : <><Sparkles className="h-4 w-4 mr-1.5" /> {summary ? "Regenerar" : "Generar"}</>}
+            </Button>
+          </div>
+          {summary ? (
+            <p className="text-sm text-foreground leading-relaxed animate-in fade-in slide-in-from-bottom-1 duration-300">{summary}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Pide a la IA un resumen rápido de la actividad y miembros del grupo.</p>
+          )}
         </div>
 
         <div className="bg-card rounded-xl border border-border p-6 space-y-4">
