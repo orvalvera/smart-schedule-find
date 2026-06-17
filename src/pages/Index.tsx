@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import GoogleCalendarConnect from "@/components/GoogleCalendarConnect";
+import PageSEO from "@/components/PageSEO";
 
 interface GroupItem { id: string; name: string }
 interface EventItem { id: string; name: string; group_id: string | null; created_at: string }
@@ -126,6 +127,11 @@ const Index = () => {
 
   return (
     <div className="px-6 py-8">
+      <PageSEO
+        title="SyncAI — Encuentra la hora perfecta para tus reuniones"
+        description="Sube una foto de tu horario o conecta Google Calendar para descubrir cuándo están todos tus amigos libres con SyncAI."
+        path="/"
+      />
       <div className="max-w-3xl mx-auto space-y-8">
         <GoogleCalendarConnect />
 

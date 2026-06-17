@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import PageSEO from "@/components/PageSEO";
 
 interface GroupEvent {
   id: string;
@@ -121,6 +122,11 @@ const GroupPage = () => {
 
   return (
     <div className="min-h-full bg-background">
+      <PageSEO
+        title={`${groupName || "Grupo"} · Panel del grupo | SyncAI`}
+        description={`Administra eventos y encuentra horarios comunes para ${groupName || "tu grupo"} con SyncAI.`}
+        path={`/group/${id ?? ""}`}
+      />
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
         <div className="space-y-2">
           <button
