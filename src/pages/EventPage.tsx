@@ -270,7 +270,7 @@ const EventPage = () => {
                 {eventName || "Evento sin nombre"}
               </h1>
               {isOwner && (
-                <Button variant="ghost" size="sm" className="h-8" onClick={() => { setNameDraft(eventName); setEditingName(true); }}>
+                <Button variant="ghost" size="sm" className="h-8" aria-label="Rename event" onClick={() => { setNameDraft(eventName); setEditingName(true); }}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
               )}

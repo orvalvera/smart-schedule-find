@@ -332,7 +332,7 @@ const ScheduleUpload = ({ eventId, onScheduleAdded }: Props) => {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             {preview ? (
               <div className="space-y-3">
-                <img src={preview} alt="Preview" className="max-h-40 mx-auto rounded-lg object-contain" />
+                <img src={preview} alt="Schedule photo preview" className="max-h-40 mx-auto rounded-lg object-contain" />
                 <p className="text-sm text-muted-foreground">{file?.name}</p>
               </div>
             ) : (
