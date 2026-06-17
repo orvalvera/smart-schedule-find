@@ -182,7 +182,7 @@ const Index = () => {
               <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
                 <f.icon className="h-5 w-5 text-accent-foreground" />
               </div>
-              <h3 className="font-semibold text-foreground">{f.title}</h3>
+              <h2 className="font-semibold text-foreground">{f.title}</h2>
               <p className="text-sm text-muted-foreground">{f.desc}</p>
             </div>
           ))}

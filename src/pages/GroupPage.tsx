@@ -145,10 +145,10 @@ const GroupPage = () => {
 
         <div className="bg-card rounded-xl border border-border p-6 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               Resumen del grupo
-            </h3>
+            </h2>
             <Button onClick={generateSummary} disabled={summaryLoading} size="sm" variant="outline" aria-label="Generar resumen con IA">
               {summaryLoading ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Generando…</> : <><Sparkles className="h-4 w-4 mr-1.5" /> {summary ? "Regenerar" : "Generar"}</>}
             </Button>
@@ -161,10 +161,10 @@ const GroupPage = () => {
         </div>
 
         <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
             Crear evento en este grupo
-          </h3>
+          </h2>
           <div className="flex gap-3">
             <Input
               placeholder="Nombre del evento (ej: Estudio Cálculo)"
@@ -179,10 +179,7 @@ const GroupPage = () => {
         </div>
 
         <div className="space-y-3">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            Eventos ({events.length})
-          </h3>
+          <h2 className="font-semibold text-foreground flex items-center manually editing to fix the rest of the replacements. Let me continue with the other edits.
           {loading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : events.length === 0 ? (
