@@ -179,7 +179,7 @@ const GroupPage = () => {
         </div>
 
         <div className="space-y-3">
-          <h2 className="font-semibold text-foreground flex items-center manually editing to fix the rest of the replacements. Let me continue with the other edits.
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
           {loading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : events.length === 0 ? (
