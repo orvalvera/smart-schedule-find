@@ -75,7 +75,7 @@ const FindATime = ({ eventId }: { eventId: string }) => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={duration} onValueChange={setDuration} disabled={loading}>
-            <SelectTrigger className="h-9 w-[120px] text-xs">
+            <SelectTrigger className="h-9 w-[120px] text-xs" aria-label="Select meeting duration">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover">

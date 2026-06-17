@@ -107,7 +107,7 @@ const EventInvitations = ({ eventId, isOwner }: { eventId: string; isOwner: bool
                  inv.status === "declined" ? "rechazada" : "pendiente"}
               </span>
               {isOwner && (
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => remove(inv.id)}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" aria-label="Remove invitation" onClick={() => remove(inv.id)}>
                   <X className="h-3.5 w-3.5" />
                 </Button>
               )}
