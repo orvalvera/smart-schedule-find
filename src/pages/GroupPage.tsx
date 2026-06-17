@@ -180,6 +180,9 @@ const GroupPage = () => {
 
         <div className="space-y-3">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            Eventos ({events.length})
+          </h2>
           {loading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : events.length === 0 ? (
