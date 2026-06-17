@@ -12,6 +12,7 @@ import FindATime from "@/components/FindATime";
 import EventInvitations from "@/components/EventInvitations";
 import { useAuth } from "@/contexts/AuthContext";
 import { getISOWeek, getDateRangeForWeek } from "@/lib/week";
+import PageSEO from "@/components/PageSEO";
 
 export interface ScheduleEvent {
   title: string;
@@ -241,6 +242,11 @@ const EventPage = () => {
 
   return (
     <div className="min-h-full bg-background">
+      <PageSEO
+        title={`${eventName || "Evento"} · Disponibilidad del grupo | SyncAI`}
+        description={`Coordina la mejor hora para ${eventName || "tu evento"} comparando los horarios de todos los participantes con SyncAI.`}
+        path={`/event/${id ?? ""}`}
+      />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         <div className="space-y-2">
           {groupId && (

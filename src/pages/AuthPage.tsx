@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
+import PageSEO from "@/components/PageSEO";
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -68,6 +69,11 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <PageSEO
+        title="Inicia sesión en SyncAI — Coordina horarios con tu grupo"
+        description="Accede a SyncAI para sincronizar tus horarios con amigos y compañeros y encontrar la hora ideal para reunirse."
+        path="/auth"
+      />
       <nav className="border-b border-border px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center gap-2">
           <Calendar className="h-6 w-6 text-primary" />

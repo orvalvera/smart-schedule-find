@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import PageSEO from "@/components/PageSEO";
 
 const NotFound = () => {
   const location = useLocation();
@@ -10,6 +11,11 @@ const NotFound = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted">
+      <PageSEO
+        title="Página no encontrada (404) | SyncAI"
+        description="La página que buscas no existe en SyncAI. Vuelve al inicio para coordinar horarios con tu grupo."
+        path={location.pathname}
+      />
       <div className="text-center">
         <h1 className="mb-4 text-4xl font-bold">404</h1>
         <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
